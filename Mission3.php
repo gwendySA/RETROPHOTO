@@ -9,7 +9,7 @@ try {
     echo "✅ Connexion réussie à la base de données.<br><br>";
 
     if (!class_exists('Transliterator')) {
-        die("❌ L'extension PHP intl n'est pas activée !");
+        die("Veuillez activer l'extension PHP intl");
     }
 
     // Vérifie si la colonne test_nom_etranger existe
@@ -83,7 +83,7 @@ try {
 
     // CSV
     $csvFile = fopen('localites_diff.csv', 'w');
-    if (!$csvFile) die("❌ Impossible d'ouvrir le fichier CSV.");
+    if (!$csvFile) die("Impossible d'ouvrir le fichier CSV.");
     fputcsv($csvFile, ['Nom Base', 'Nom Local', 'Pays ID']);
 
     echo "<h3>🌍 Localités avec nom local différent :</h3>";
@@ -127,6 +127,6 @@ try {
     echo "<br>✅ Les résultats ont été enregistrés dans <strong>localites_diff.csv</strong>.";
 
 } catch (PDOException $e) {
-    echo "❌ Erreur de connexion : " . $e->getMessage();
+    echo "Erreur de connexion : " . $e->getMessage();
 }
 ?>
