@@ -18,7 +18,7 @@ try {
     }
 
     function handleSpecialCases($isoCode) {
-        return $isoCode === 'FO' ? 'Îles Féroé' : null;
+        return $isoCode === 'FO' ? 'Folklore' : null;
     }
 
     $sql = "SELECT LO_COMPTEUR, LO_DEPARTEMENT FROM Localite WHERE LO_PAYS = 0";
@@ -70,8 +70,9 @@ try {
 
     echo "<br>Mise à jour terminée : $compteurMAJ localité(s) modifiée(s).<br>";
 
+
     // Création du fichier CSV
-    $fileName = "export_localites_" . date("Ymd_His") . ".csv";
+    $fileName = "MAJ_code_pays.csv";
     $filePath = __DIR__ . '/' . $fileName;
     $fp = fopen($filePath, 'w');
 
@@ -80,7 +81,7 @@ try {
     }
     fclose($fp);
 
-    echo "<br>Fichier CSV généré : <a href='$fileName' download>Télécharger le fichier</a>";
+    echo "<br>Fichier CSV généré : <a href='" . htmlspecialchars($fileName) . "' download>Télécharger le fichier</a>";
 
 } catch (PDOException $e) {
     echo "Erreur : " . $e->getMessage();
