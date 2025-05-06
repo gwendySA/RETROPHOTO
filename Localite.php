@@ -7,7 +7,7 @@ header('Access-Control-Allow-Origin: *');
 require_once 'Bdd.php';
 
 set_time_limit(0);
-ob_implicit_flush(true);
+ob_implicit_flush(true); // Active l'envoi immédiat, donc pas besoin de ob_flush()
 
 $bdd = Bdd::getConnexion();
 
@@ -25,23 +25,23 @@ $doublons = $résultat->fetchAll(PDO::FETCH_ASSOC);
 $total = count($doublons);
 $index = 0;
 
-// Envoie du total initial
+// Envoi du total initial
 echo "data: " . json_encode(['total' => $total, 'index' => 0]) . "\n\n";
-ob_flush(); flush();
+flush();
 
 // Ouverture ou création du fichier CSV
 $csv = fopen("homonymes_stricts.csv", "w");
 if (!$csv) {
     echo "data: " . json_encode(['error' => "Impossible d'ouvrir le fichier CSV."]) . "\n\n";
-    ob_flush(); flush();
+    flush();
     exit;
 }
 fputcsv($csv, ['LO_COMPTEUR', 'Nom', 'Département', 'Pays']);
 
 // Étape 2 : Traitement de chaque doublon
 foreach ($doublons as $groupe) {
-    $nom = $groupe['LO_LOCALITE'];
-    $dep = $groupe['LO_DEPARTEMENT'];
+    $nom  = $groupe['LO_LOCALITE'];
+    $dep  = $groupe['LO_DEPARTEMENT'];
     $pays = $groupe['LO_PAYS'];
 
     $stmt = $bdd->prepare("
@@ -50,8 +50,8 @@ foreach ($doublons as $groupe) {
         WHERE LO_LOCALITE = :nom AND LO_DEPARTEMENT = :dep AND LO_PAYS = :pays
     ");
     $stmt->execute([
-        'nom' => $nom,
-        'dep' => $dep,
+        'nom'  => $nom,
+        'dep'  => $dep,
         'pays' => $pays
     ]);
 
@@ -68,21 +68,22 @@ foreach ($doublons as $groupe) {
 
         // Envoi au client (SSE)
         echo "data: " . json_encode([
-                'id' => $loc['LO_COMPTEUR'],
-                'nomBase' => $loc['LO_LOCALITE'],
+                'id'       => $loc['LO_COMPTEUR'],
+                'nomBase'  => $loc['LO_LOCALITE'],
                 'nomLocal' => $loc['LO_LOCALITE'],
-                'pays' => $loc['LO_PAYS']
+                'pays'     => $loc['LO_PAYS']
             ]) . "\n\n";
-        ob_flush(); flush();
-        usleep(50000); // petit délai pour laisser le temps au front
+        flush();
+        usleep(50000); // Délai pour laisser le client traiter les données
     }
 
     $index++;
     echo "data: " . json_encode(['total' => $total, 'index' => $index]) . "\n\n";
-    ob_flush(); flush();
+    flush();
 }
 
 // Clôture
 fclose($csv);
 echo "data: [FIN]\n\n";
 flush();
+?>

@@ -12,13 +12,12 @@ try {
         die("❌ L'extension PHP intl n'est pas activée !");
     }
 
-    // Vérifie si la colonne test_nom_etranger existe
-    $checkColumn = $pdo->query("SHOW COLUMNS FROM Localite LIKE 'test_nom_etranger'");
-    if ($checkColumn->rowCount() == 0) {
-        $pdo->exec("ALTER TABLE Localite ADD COLUMN test_nom_etranger VARCHAR(255) DEFAULT NULL");
-        echo "📦 Colonne 'test_nom_etranger' ajoutée à la table Localite.<br>";
+    // 🔧 MODIF : Ajout de l'ID du pays en paramètre
+    $idPaysCible = 2;    if (!$idPaysCible) {
+        die("❌ ID de pays manquant ou invalide.");
     }
 
+    // 🔣 Fonctions de nettoyage et transformation
     function cleanString($str) {
         $str = mb_strtolower($str, 'UTF-8');
         $str = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $str);
@@ -81,24 +80,26 @@ try {
         return null;
     }
 
-    // CSV
+    // 🧾 Fichier CSV
     $csvFile = fopen('localites_diff.csv', 'w');
     if (!$csvFile) die("❌ Impossible d'ouvrir le fichier CSV.");
-    fputcsv($csvFile, ['Nom Base', 'Nom Local', 'Pays ID']);
+    fputcsv($csvFile, ['ID Localite', 'ID Pays', 'Nom Base', 'Nom Local', 'Nouveau Nom Base']);
 
-    echo "<h3>🌍 Localités avec nom local différent :</h3>";
+    echo "<h3>🌍 Localités du pays ID $idPaysCible avec nom local différent :</h3>";
 
-    $sql = "SELECT LO_LOCALITE, LO_PAYS FROM Localite WHERE LO_PAYS != 1 AND LO_PAYS != 0";
-    $stmt = $pdo->query($sql);
+    // 🔧 MODIF : Requête ciblée sur un seul pays
+    $sql = "SELECT LO_COMPTEUR, LO_LOCALITE, LO_PAYS FROM Localite WHERE LO_PAYS = :idPays";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(['idPays' => $idPaysCible]);
+
+    $localitesAmettreAJour = [];
 
     foreach ($stmt as $row) {
         $nomBase = $row['LO_LOCALITE'];
         $paysID = $row['LO_PAYS'];
 
-        // Ignore les localités qui contiennent "DIVERS"
-        if (stripos($nomBase, 'divers') !== false) {
-            continue;  // Passer à la prochaine itération si "DIVERS" est trouvé
-        }
+        // Ignorer les noms contenant "DIVERS"
+        if (stripos($nomBase, 'divers') !== false) continue;
 
         $stmtCountry = $pdo->prepare("SELECT PA_ISO FROM Pays WHERE PA_COMPTEUR = :paysID LIMIT 1");
         $stmtCountry->execute(['paysID' => $paysID]);
@@ -111,20 +112,36 @@ try {
         $nomLocalOrigClean = cleanString($nomLocalOrig);
 
         if ($nomLocalOrig && $nomLocalOrigClean !== $nomBaseClean) {
-            fputcsv($csvFile, [$nomBase, $nomLocalOrig, $paysID]);
-            echo "<strong>$nomBase</strong> ➜ traduit/localisé en : " . htmlspecialchars($nomLocalOrig) . "<br>";
+            $nomAvecTraduction = $nomBase . ' (' . $nomLocalOrig . ')';
 
-            $update = $pdo->prepare("UPDATE Localite SET test_nom_etranger = :nom WHERE LO_LOCALITE = :loc AND LO_PAYS = :pays");
-            $update->execute([
-                'nom' => $nomLocalOrig,
-                'loc' => $nomBase,
-                'pays' => $paysID
-            ]);
+            fputcsv($csvFile, [$row['LO_COMPTEUR'], $paysID, $nomBase, $nomLocalOrig, $nomAvecTraduction]);
+
+            $localitesAmettreAJour[] = [
+                'id' => $row['LO_COMPTEUR'],
+                'nomBase' => $nomBase,
+                'nouveauNom' => $nomAvecTraduction,
+                'paysID' => $paysID
+            ];
+
+            echo "<strong>$nomBase</strong> ➜ traduit/localisé en : " . htmlspecialchars($nomLocalOrig) . "<br>";
         }
     }
 
     fclose($csvFile);
-    echo "<br>✅ Les résultats ont été enregistrés dans <strong>localites_diff.csv</strong>.";
+    echo "<br>✅ Résultats enregistrés dans <strong>localites_diff.csv</strong>.";
+
+    // 💾 Mise à jour base de données
+    echo "<br><h3>Mise à jour de la base de données...</h3>";
+
+    foreach ($localitesAmettreAJour as $localite) {
+        $update = $pdo->prepare("UPDATE Localite SET LO_LOCALITE = :nouveauNom WHERE LO_COMPTEUR = :id");
+        $update->execute([
+            'nouveauNom' => $localite['nouveauNom'],
+            'id' => $localite['id']
+        ]);
+    }
+
+    echo "<br>✅ Mise à jour terminée.";
 
 } catch (PDOException $e) {
     echo "❌ Erreur de connexion : " . $e->getMessage();
